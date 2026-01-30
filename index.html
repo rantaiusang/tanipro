@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaniPro - Aggregator & Supply Chain</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel untuk JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        stone: { 300: '#d6d3d1' }
+                    },
+                    animation: {
+                        'spin': 'spin 1s linear infinite',
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                        'slide-up': 'slideUp 0.3s ease-out forwards',
+                    },
+                    keyframes: {
+                        spin: { '100%': { transform: 'rotate(360deg)' } },
+                        fadeIn: {
+                            'from': { opacity: '0', transform: 'scale(0.95)' },
+                            'to': { opacity: '1', transform: 'scale(1)' }
+                        },
+                        slideUp: {
+                            'from': { opacity: '0', transform: 'translateY(20px)' },
+                            'to': { opacity: '1', transform: 'translateY(0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .fade-in-section { opacity: 0; transform: translateY(40px); transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1), transform 1s cubic-bezier(0.16, 1, 0.3, 1); }
+        .fade-in-section.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body class="bg-[#050505] text-stone-300 antialiased selection:bg-emerald-500 selection:text-white">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { createClient } = supabase;
+
+        // --- KONFIGURASI SUPABASE ---
+        const SUPABASE_URL = 'https://dikapquhusbwjccbqcsb.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpa2FwcXVodXNid2pjY2JxY3NiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNjQ1NTQsImV4cCI6MjA4NDc0MDU1NH0.X278oHDF0be7oa25484eliSukSYAYvDbJyU6ysz83zA';
+
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- NOMOR ADMIN WHATSAPP ---
+        const ADMIN_WA = '628133039866';
+
+        // --- ICONS COMPONENTS ---
+        const Icon = ({ name, size = 24, className }) => {
+            useEffect(() => { lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // --- DATA DUMMY ---
+        const DUMMY_PRODUCTS = [
+            { 
+                id: 1, name: 'Manggis Segar', category: 'Buah', description: 'Manggis segar lokal, manis dan kaya antioksidan.', 
+                image_url: 'https://ddmn.supabase.co/storage/v1/object/public/images/products/manggis.webp', 
+                price: 18000, unit: 'kg', stock: 50, is_available: true, status: 'READY STOCK', harvest_date: null, slug: 'manggis-segar' 
+            },
+            { 
+                id: 2, name: 'Alpukat Mentega', category: 'Buah', description: 'Alpukat mentega super tebal, kualitas ekspor.', 
+                image_url: 'https://dikapquhusbwjccbqcsb.supabase.co/storage/v1/object/public/images/pertanian-tani-pro_.jpg', 
+                price: 25000, unit: 'kg', stock: 40, is_available: true, status: 'READY STOCK', harvest_date: null, slug: 'alpukat-lokal' 
+            },
+            { 
+                id: 3, name: 'Durian Lokal', category: 'Buah', description: 'Durian lokal matang pohon, aroma kuat.', 
+                image_url: 'https://ddmn.supabase.co/storage/v1/object/public/images/products/durian.webp', 
+                price: 50000, unit: 'buah', stock: 0, is_available: false, status: 'BELUM PANEN', harvest_date: '2024-12-25', slug: 'durian-lokal' 
+            }
+        ];
+
+        // --- MODAL PRE-ORDER COMPONENT ---
+        const PreOrderModal = ({ isOpen, onClose, product }) => {
+            const [quantity, setQuantity] = useState(1);
+
+            if (!isOpen || !product) return null;
+
+            const handleConfirm = () => {
+                const message = `Halo TaniPro, saya ingin *Pre-Order*:\n\n📦 Produk: ${product.name}\n📅 Estimasi Panen: ${product.harvest_date || 'Hubungi Admin'}\n🔢 Jumlah: ${quantity} ${product.unit}\n\nMohon info ketersediaan dan pembayaran.`;
+                const url = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(message)}`;
+                window.open(url, '_blank');
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="bg-[#121212] w-full max-w-md rounded-3xl border border-white/10 p-6 relative z-10 animate-fade-in shadow-2xl shadow-emerald-900/20">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-stone-500 hover:text-white">
+                            <Icon name="x" className="w-6 h-6" />
+                        </button>
+                        <div className="flex items-center gap-4 mb-6">
+                            <img src={product.image_url || 'https://via.placeholder.com/150'} alt={product.name} className="w-20 h-20 rounded-xl object-cover bg-[#1a1a1a]" />
+                            <div>
+                                <h3 className="text-white font-bold text-xl">{product.name}</h3>
+                                <div className="text-orange-400 text-sm font-bold mt-1 flex items-center gap-1">
+                                    <Icon name="clock" className="w-4 h-4" /> Estimasi: {product.harvest_date || 'Hubungi Admin'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-stone-400 text-sm mb-2 block">Jumlah Pre-Order</label>
+                                <div className="flex items-center bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden">
+                                    <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-4 py-3 text-emerald-500 hover:bg-white/5 font-bold text-xl">-</button>
+                                    <input type="number" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))} className="bg-transparent text-white text-center w-full focus:outline-none font-bold text-lg" />
+                                    <button onClick={() => setQuantity(quantity + 1)} className="px-4 py-3 text-emerald-500 hover:bg-white/5 font-bold text-xl">+</button>
+                                </div>
+                            </div>
+                            <button onClick={handleConfirm} className="w-full py-4 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2">
+                                <Icon name="message-circle" className="w-5 h-5" /> Lanjut ke WhatsApp
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        function LandingPage() {
+            const [loading, setLoading] = useState(true);
+            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+            const [products, setProducts] = useState([]);
+            const [usingMockData, setUsingMockData] = useState(false);
+            const [selectedProduct, setSelectedProduct] = useState(null);
+
+            const heroRef = useRef(null);
+            const stockRef = useRef(null);
+            const b2bRef = useRef(null);
+            const b2cRef = useRef(null);
+            const valueRef = useRef(null);
+            const ctaRef = useRef(null);
+
+            // --- FETCH PRODUCTS ---
+            useEffect(() => {
+                const fetchProducts = async () => {
+                    try {
+                        const { data, error } = await supabaseClient.from('katalogtanipro').select('*').order('created_at', { ascending: false });
+                        if (error) {
+                            console.warn("Gagal ambil data Supabase, menggunakan data demo:", error);
+                            setProducts(DUMMY_PRODUCTS);
+                            setUsingMockData(true);
+                        } else {
+                            setProducts(data && data.length > 0 ? data : DUMMY_PRODUCTS);
+                            setUsingMockData(false);
+                        }
+                    } catch (err) {
+                        console.error("Error system:", err);
+                        setProducts(DUMMY_PRODUCTS);
+                        setUsingMockData(true);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                fetchProducts();
+
+                const channel = supabaseClient.channel('public:katalogtanipro')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'katalogtanipro' }, (payload) => {
+                        if (payload.eventType === 'INSERT') setProducts((prev) => [payload.new, ...prev]);
+                        else if (payload.eventType === 'UPDATE') setProducts((prev) => prev.map((prod) => prod.id === payload.new.id ? payload.new : prod));
+                        else if (payload.eventType === 'DELETE') setProducts((prev) => prev.filter((prod) => prod.id !== payload.old.id));
+                    })
+                    .subscribe();
+
+                return () => { supabaseClient.removeChannel(channel); };
+            }, []);
+
+            // --- OBSERVER ---
+            useEffect(() => {
+                if (loading) return;
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) entry.target.classList.add('visible');
+                    });
+                }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
+                
+                const elements = [heroRef.current, stockRef.current, b2bRef.current, b2cRef.current, valueRef.current, ctaRef.current];
+                elements.forEach((el) => { if (el) observer.observe(el); });
+                return () => observer.disconnect();
+            }, [loading]);
+
+            const handleLogin = () => { window.location.href = 'login.html'; };
+            const handleViewCatalog = () => { window.location.href = 'katalog.html'; };
+            const handleOrderClick = (product) => {
+                const isPreOrder = !product.is_available || product.stock === 0;
+                if (isPreOrder) setSelectedProduct(product);
+                else {
+                    const message = `Halo TaniPro, saya ingin memesan *READY STOCK*:\n\n📦 Produk: ${product.name}\n📝 Stok: Tersedia (${product.stock} ${product.unit})\n\nMohon info pembayaran.`;
+                    window.open(`https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(message)}`, '_blank');
+                }
+            };
+
+            useEffect(() => { lucide.createIcons(); });
+
+            if (loading) return (
+                <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-stone-400 px-4">
+                    <div className="relative w-16 h-16 mb-6">
+                        <div className="absolute inset-0 border-4 border-stone-800 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-emerald-600 rounded-full border-t-transparent animate-spin"></div>
+                    </div>
+                    <span className="font-light text-xl tracking-wide">Memuat Sistem...</span>
+                    {usingMockData && <span className="text-xs text-orange-500 mt-2">Mode Demo</span>}
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen bg-[#050505] text-stone-300 font-sans overflow-x-hidden flex flex-col">
+                    <PreOrderModal isOpen={!!selectedProduct} onClose={() => setSelectedProduct(null)} product={selectedProduct} />
+
+                    {/* --- NAVBAR --- */}
+                    <nav className="fixed top-0 w-full z-50 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5 h-20 transition-all duration-300">
+                        <div className="max-w-7xl mx-auto px-6 h-full">
+                            <div className="flex justify-between h-full items-center">
+                                <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo(0,0)}>
+                                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-lime-500 text-white rounded-xl flex items-center justify-center font-bold shadow-lg shadow-emerald-900/40 group-hover:scale-105 transition-transform duration-300">T</div>
+                                    <div className="flex flex-col justify-center leading-none">
+                                        <h1 className="font-bold text-xl tracking-tight text-white">TaniPro</h1>
+                                        <span className="text-[9px] text-emerald-500 uppercase tracking-[0.2em] font-bold">Aggregator & Supply Chain</span>
+                                    </div>
+                                </div>
+                                <div className="hidden md:flex items-center gap-6">
+                                    <button onClick={handleLogin} className="px-8 py-2.5 rounded-full bg-emerald-600 text-white font-medium text-sm hover:bg-emerald-500 hover:shadow-lg hover:shadow-emerald-900/50 transition-all duration-300">Login Partner</button>
+                                </div>
+                                <button className="md:hidden p-3 -mr-3 text-stone-400 hover:bg-white/5 rounded-full transition-colors" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                                    {isMobileMenuOpen ? <Icon name="x" /> : <Icon name="menu" />}
+                                </button>
+                            </div>
+                        </div>
+                        {isMobileMenuOpen && (
+                            <div className="md:hidden absolute top-full left-0 w-full bg-[#050505]/95 backdrop-blur-xl border-b border-white/10 shadow-2xl animate-fade-in">
+                                <div className="px-6 py-8 flex flex-col gap-4">
+                                    <button onClick={handleLogin} className="w-full text-left px-6 py-4 rounded-2xl bg-emerald-600 text-white font-medium flex items-center justify-between active:scale-95 transition-transform">Login Partner <Icon name="arrow-right" className="opacity-70" /></button>
+                                </div>
+                            </div>
+                        )}
+                    </nav>
+
+                    {/* --- HERO SECTION --- */}
+                    <section ref={heroRef} className="fade-in-section pt-32 pb-24 px-6 relative min-h-[90vh] flex items-center">
+                        <div className="absolute inset-0 bg-[#050505]">
+                            <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px]"></div>
+                            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-lime-600/10 rounded-full blur-[120px]"></div>
+                        </div>
+
+                        <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-16 items-center relative z-10">
+                            
+                            <div className="order-2 lg:order-1 text-center lg:text-left">
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wide mb-8">
+                                    <Icon name="shield" className="w-3 h-3" /> TERPERCAYA & BERSERTIFIKAT
+                                </div>
+                                <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white mb-8 leading-[1.1] tracking-tight">
+                                    Akses Pasar <br />
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-lime-300">Tanpa Batas</span>
+                                </h1>
+                                <p className="text-lg sm:text-xl text-stone-400 mb-10 leading-relaxed font-normal max-w-lg mx-auto lg:mx-0">
+                                    Kami adalah penadah modern yang menghubungkan ribuan petani langsung ke restoran, hotel, dan konsumen. Kelola stok, jamin kualitas, dan kirim langsung.
+                                </p>
+                                <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4 w-full">
+                                    <button onClick={handleLogin} className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-emerald-600 text-white font-bold text-lg hover:bg-emerald-500 hover:shadow-xl hover:shadow-emerald-900/40 transition-all duration-300 flex items-center justify-center gap-2 group">
+                                        Mulai Kerjasama <Icon name="arrow-right" className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                    <button onClick={handleViewCatalog} className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white/5 text-white border border-white/10 font-bold text-lg hover:bg-white/10 hover:border-white/20 transition-all duration-300 flex items-center justify-center gap-2">
+                                        Lihat Katalog <Icon name="package" className="w-5 h-5 text-emerald-500" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="order-1 lg:order-2 relative">
+                                <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl shadow-black/50 aspect-[4/3] border border-white/10">
+                                    <img 
+                                        src="https://dikapquhusbwjccbqcsb.supabase.co/storage/v1/object/public/images/pertanian-tani-pro_.jpg" 
+                                        alt="Gudang Distribusi TaniPro" 
+                                        className="w-full h-full object-cover" 
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent" />
+                                    <div className="absolute bottom-8 left-8 right-8 bg-black/70 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-emerald-600 p-2 rounded-xl shadow-lg shadow-emerald-600/20"><Icon name="store" className="w-5 h-5 text-white" /></div>
+                                                <div>
+                                                    <div className="text-white font-bold">Operasional Penuh</div>
+                                                    <div className="text-stone-400 text-xs">Jaringan Logistik Nasional</div>
+                                                </div>
+                                            </div>
+                                            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* --- SECTION KATALOG PRODUK --- */}
+                    <section id="stok" ref={stockRef} className="fade-in-section py-24 bg-[#0a0a0a] border-t border-white/5">
+                        <div className="max-w-7xl mx-auto px-6">
+                            <div className="flex flex-col md:flex-row justify-between items-end mb-16">
+                                <div className="max-w-2xl">
+                                    <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">Katalog Hasil Panen</h2>
+                                    <p className="text-stone-400 text-lg">
+                                        {usingMockData ? "Data Demo (Sambungkan Supabase untuk data real)." : "Stok langsung dari petani mitra kami. Update secara real-time."}
+                                    </p>
+                                </div>
+                                <button onClick={handleViewCatalog} className="mt-4 md:mt-0 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-medium hover:bg-emerald-600 hover:border-emerald-600 transition-all duration-300 flex items-center gap-2">
+                                    <Icon name="arrow-right" className="w-4 h-4" /> Lihat Katalog Selengkapnya
+                                </button>
+                            </div>
+
+                            <div className="grid md:grid-cols-3 gap-8">
+                                {products.slice(0, 3).map((product) => {
+                                    const isReady = product.is_available === true && product.stock > 0;
+                                    const productStatus = product.status || (isReady ? "READY STOCK" : "BELUM PANEN");
+                                    
+                                    const statusColor = isReady ? "bg-emerald-500 text-white" : "bg-orange-500/20 text-orange-400 border-orange-500/20 backdrop-blur-md";
+                                    const StatusIcon = isReady ? "check-circle" : "clock";
+                                    
+                                    let btnText = "Pesan ";
+                                    let btnClass = "hover:bg-emerald-600 hover:text-white text-emerald-500"; 
+                                    
+                                    if (!isReady && productStatus === "BELUM PANEN") {
+                                        btnText = "Pre-Order ";
+                                        btnClass = "hover:bg-orange-600 text-orange-400";
+                                    } else if (!isReady) {
+                                        btnText = "Pre-Order WA";
+                                        btnClass = "hover:bg-orange-600 text-orange-400";
+                                    }
+
+                                    const imageFilter = !isReady ? "grayscale opacity-80" : "";
+                                    
+                                    return (
+                                        <div key={product.id} className="group p-6 rounded-3xl bg-[#121212] border border-white/5 hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-900/10 transition-all duration-500">
+                                            <div className="relative rounded-2xl overflow-hidden aspect-video mb-6">
+                                                <img src={product.image_url || 'https://images.unsplash.com/photo-1542838132-92c5c4e521d5?q=80&w=2070'} alt={product.name} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${imageFilter}`} />
+                                                <div className={`absolute top-3 right-3 ${statusColor} text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1`}>
+                                                    <Icon name={StatusIcon} className="w-3 h-3" /> {productStatus}
+                                                </div>
+                                            </div>
+                                            <h3 className="text-2xl font-bold text-white mb-2">{product.name}</h3>
+                                            <p className="text-stone-400 text-sm mb-6 h-12 overflow-hidden text-ellipsis line-clamp-2">{product.description}</p>
+                                            
+                                            <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                                                <div>
+                                                    <div className={`${isReady ? 'text-emerald-400' : 'text-orange-400'} font-bold text-lg`}>
+                                                        {isReady ? `Tersedia ${product.stock} ${product.unit}` : `Bisa Pre-Order`}
+                                                    </div>
+                                                    {!isReady && product.harvest_date && (
+                                                        <div className="text-xs text-stone-500 mt-1 flex items-center gap-1">
+                                                            <Icon name="calendar" className="w-3 h-3" /> Panen: {product.harvest_date}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                <button 
+                                                    onClick={() => handleOrderClick(product)} 
+                                                    className={`text-sm font-bold flex items-center gap-1 transition-colors bg-white/5 px-3 py-2 rounded-lg border border-white/10 ${btnClass}`}
+                                                >
+                                                    {btnText} <Icon name="arrow-right" className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* --- VALUE PROPOSITION --- */}
+                    <section className="py-24 bg-[#050505]">
+                        <div className="max-w-7xl mx-auto px-6">
+                            <div className="text-center mb-16">
+                                <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">Kami Mengelola Semuanya</h2>
+                                <p className="text-stone-400 text-lg">Anda fokus menanam, biarkan kami yang urus pasarnya.</p>
+                            </div>
+
+                            <div className="grid md:grid-cols-3 gap-6">
+                                <div className="group p-8 rounded-3xl bg-[#121212] border border-white/5 hover:border-emerald-500/30 hover:bg-[#1a1a1a] hover:shadow-xl hover:shadow-emerald-900/20 transition-all duration-300">
+                                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-6 text-emerald-400 group-hover:scale-110 transition-transform duration-300">
+                                        <Icon name="shield" className="w-7 h-7" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-3">Jaminan Kualitas</h3>
+                                    <p className="text-stone-400 text-sm leading-relaxed">Tim kami memeriksa setiap panen di lapangan sebelum dikirim ke pembeli.</p>
+                                </div>
+                                <div className="group p-8 rounded-3xl bg-[#121212] border border-white/5 hover:border-blue-500/30 hover:bg-[#1a1a1a] hover:shadow-xl hover:shadow-blue-900/20 transition-all duration-300">
+                                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6 text-blue-400 group-hover:scale-110 transition-transform duration-300">
+                                        <Icon name="truck" className="w-7 h-7" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-3">Logistik Terpadu</h3>
+                                    <p className="text-stone-400 text-sm leading-relaxed">Armada pengiriman siap antar panen dari desa ke kota.</p>
+                                </div>
+                                <div className="group p-8 rounded-3xl bg-[#121212] border border-white/5 hover:border-orange-500/30 hover:bg-[#1a1a1a] hover:shadow-xl hover:shadow-orange-900/20 transition-all duration-300">
+                                    <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mb-6 text-orange-400 group-hover:scale-110 transition-transform duration-300">
+                                        <Icon name="users" className="w-7 h-7" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-3">Pembayaran Pasti</h3>
+                                    <p className="text-stone-400 text-sm leading-relaxed">Petani dibayar lunas tepat waktu setelah barang diterima.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* --- MODEL BISNIS (B2B & B2C) --- */}
+                    <section className="py-24 bg-[#0a0a0a]">
+                        <div className="max-w-7xl mx-auto px-6">
+                            <div className="grid lg:grid-cols-2 gap-16 items-center">
+                                <div ref={b2bRef} className="fade-in-section p-10 rounded-[3rem] bg-[#121212] border border-white/10 shadow-xl shadow-black/50 relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-blue-600/10 transition-colors"></div>
+                                    <div className="relative z-10">
+                                        <div className="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-8 border border-blue-500/20"><Icon name="factory" className="w-8 h-8" /></div>
+                                        <h3 className="text-3xl font-bold text-white mb-4">Supply Chain B2B</h3>
+                                        <p className="text-stone-400 mb-8 leading-relaxed">Solusi supply chain untuk restoran, hotel, dan industri pengolahan. Volume besar, standar internasional.</p>
+                                        
+                                        <div className="flex items-center gap-6 mb-6 text-xs font-bold text-stone-500">
+                                            <span className="flex items-center gap-1"><Icon name="map-pin" className="w-4 h-4 text-blue-500" /> 30 Kota</span>
+                                            <span className="flex items-center gap-1"><Icon name="check-circle" className="w-4 h-4 text-blue-500" /> ISO Certified</span>
+                                        </div>
+
+                                        <ul className="space-y-4">
+                                            {['Kontrak Tahunan', 'Kontrol Kualitas Ketat', 'Pengiriman Reguler'].map((item, i) => (
+                                                <li key={i} className="flex items-center gap-3 text-stone-300 font-medium"><Icon name="check-circle" className="w-5 h-5 text-blue-500" /> {item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <div ref={b2cRef} className="fade-in-section p-10 rounded-[3rem] bg-gradient-to-br from-emerald-900 to-[#050505] text-white shadow-xl shadow-emerald-900/30 relative overflow-hidden group">
+                                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                                    <div className="relative z-10">
+                                        <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md text-emerald-400 flex items-center justify-center mb-8 border border-white/10"><Icon name="store" className="w-8 h-8" /></div>
+                                        <h3 className="text-3xl font-bold text-white mb-4">Penjualan B2C</h3>
+                                        <p className="text-emerald-100 mb-8 leading-relaxed">Hasil panen yang tidak laku B2B kami distribusikan ke pasar ritel. Warung, supermarket, hingga konsumen akhir.</p>
+                                        
+                                        <div className="flex items-center gap-6 mb-6 text-xs font-bold text-emerald-200">
+                                            <span className="flex items-center gap-1"><Icon name="shopping-cart" className="w-4 h-4 text-emerald-400" /> 10rb+ Transaksi</span>
+                                            <span className="flex items-center gap-1"><Icon name="award" className="w-4 h-4 text-emerald-400" /> Top Seller</span>
+                                        </div>
+
+                                        <ul className="space-y-4">
+                                            {['Harga Konsumen Wajar', 'Kemasan Retail', 'Dukungan Pi Network'].map((item, i) => (
+                                                <li key={i} className="flex items-center gap-3 text-emerald-50 font-medium"><Icon name="check-circle" className="w-5 h-5 text-emerald-400" /> {item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* --- TRUST SECTION --- */}
+                    <section ref={valueRef} className="fade-in-section py-32 relative overflow-hidden text-white">
+                        <div className="absolute inset-0">
+                            <img src="https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?q=80&w=2070&auto=format&fit=crop" alt="Kemitraan Petani" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-[#050505]/95 mix-blend-multiply"></div>
+                        </div>
+                        <div className="max-w-7xl mx-auto px-6 relative z-10">
+                            <div className="max-w-3xl">
+                                <h2 className="text-4xl md:text-6xl font-bold mb-8 tracking-tight">Mitra Petani <br/>Prioritas Kami.</h2>
+                                <p className="text-lg text-stone-300 mb-8 font-medium leading-relaxed">
+                                    Kami bangun hubungan jangka panjang dengan kelompok tani. Memberikan bibit unggul, panduan teknis, dan jaminan serap panen. TaniPro adalah partner bisnis Anda.
+                                </p>
+                                <div className="grid grid-cols-3 gap-8 mt-12">
+                                    <div>
+                                        <div className="text-4xl font-bold text-white">500+</div>
+                                        <div className="text-sm text-stone-400 uppercase tracking-widest font-semibold mt-2">Mitra Tani</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-4xl font-bold text-white">30+</div>
+                                        <div className="text-sm text-stone-400 uppercase tracking-widest font-semibold mt-2">Kota Jangkauan</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-4xl font-bold text-white">100%</div>
+                                        <div className="text-sm text-stone-400 uppercase tracking-widest font-semibold mt-2">Jaminan Serap</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* --- CTA --- */}
+                    <section ref={ctaRef} className="fade-in-section py-24 px-6">
+                        <div className="max-w-5xl mx-auto bg-[#0a0a0a] rounded-[3rem] p-12 md:p-20 text-center text-white shadow-2xl shadow-black/50 relative overflow-hidden border border-white/10">
+                            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-emerald-600/20 via-transparent to-transparent"></div>
+                            
+                            <div className="relative z-10">
+                                <h2 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">Punya Hasil Panen?</h2>
+                                <p className="text-stone-400 text-lg mb-10 max-w-2xl mx-auto">
+                                    Jangan biarkan hasil panen Anda membusuk atau dijual murah. Bergabung dengan TaniPro sekarang untuk jaminan harga dan pasar yang pasti.
+                                </p>
+                                <button onClick={handleLogin} className="inline-flex items-center justify-center px-10 py-4 rounded-2xl bg-emerald-600 text-white font-bold text-lg hover:bg-emerald-500 hover:scale-105 transition-all duration-300 shadow-xl shadow-emerald-900/40">
+                                    Ajukan Penawaran Panen
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* --- FOOTER --- */}
+                    <footer className="bg-[#050505] border-t border-white/10 pt-16 pb-8">
+                        <div className="max-w-7xl mx-auto px-6">
+                            <div className="flex flex-col md:flex-row justify-between items-start gap-10 mb-10">
+                                
+                                
+
+                                {/* Bagian Kanan: Kontak Admin */}
+                                <div className="flex flex-col items-center md:items-end gap-4">
+                           <h3 className="text-white font-bold text-lg">Hubungi Admin</h3>
+                                    <p className="text-stone-400 text-sm text-center md:text-right">
+                                        
+                                    </p>
+                                    
+                                    {/* Tombol WhatsApp di Footer */}
+                                    <a 
+                                        href={`https://wa.me/${ADMIN_WA}`} 
+                                        target="_blank"
+                                        className="px-6 py-3 rounded-xl bg-[#25D366] hover:bg-[#128C7E] text-white font-bold transition-all shadow-lg shadow-emerald-900/20 flex items-center gap-2"
+                                    >
+                                        <Icon name="message-circle" className="w-5 h-5" /> Chat WhatsApp
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Garis Pemisah & Copyright */}
+                            <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                                <p className="text-xs text-stone-600">© {new Date().getFullYear()} TaniPro Indonesia. All rights reserved.</p>
+                                <div className="flex items-center gap-4 text-xs text-stone-600">
+                                    <span className="hover:text-emerald-500 cursor-pointer transition-colors">Kebijakan Privasi</span>
+                                    <span className="hover:text-emerald-500 cursor-pointer transition-colors">Syarat & Ketentuan</span>
+                                </div>
+                            </div>
+                        </div>
+                    </footer>
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LandingPage />);
+    </script>
+</body>
+</html>
